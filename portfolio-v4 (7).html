@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" translate="no">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="google" content="notranslate"/>
+<title>ניהול תיק השקעות</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI','Arial',sans-serif;background:#f0f4f8;direction:rtl;color:#1a1a2e;min-height:100vh;}
+table{border-collapse:collapse;width:100%;}
+input,select,textarea{outline:none;font-family:inherit;}
+button{cursor:pointer;font-family:inherit;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:#ddd;border-radius:3px;}
+
+.header{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);padding:13px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 3px 12px rgba(0,0,0,.3);}
+.header h1{font-size:18px;font-weight:900;color:#fff;}
+.hbtns{display:flex;gap:7px;}
+.hbtn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;}
+.hbtn:hover{background:rgba(255,255,255,.2);}
+
+.tabs{background:#fff;border-bottom:2px solid #e8eef6;padding:0 20px;display:flex;position:sticky;top:50px;z-index:90;}
+.tab{padding:13px 18px;font-size:14px;font-weight:700;color:#999;border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-2px;}
+.tab.active{color:#2979c8;border-bottom-color:#2979c8;}
+
+.content{padding:20px;max-width:1100px;margin:0 auto;}
+.section{display:none;}.section.active{display:block;}
+
+.card{background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);overflow:hidden;margin-bottom:18px;}
+.card-head{padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-weight:800;}
+.card-body{padding:18px;}
+
+.action-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+.action-bar h2{font-size:18px;font-weight:900;}
+.action-btns{display:flex;gap:8px;flex-wrap:wrap;}
+
+.btn-primary{background:linear-gradient(135deg,#1565c0,#2979c8);color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(41,121,200,.25);}
+.btn-primary:hover{opacity:.9;}
+.btn-secondary{background:#f0f6ff;color:#1565c0;border:1.5px solid #c0d8f8;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;}
+
+/* Summary */
+.sum-table th{background:#f8f9fa;padding:9px 10px;font-weight:700;color:#666;font-size:11px;text-align:right;}
+.sum-table td{padding:9px 10px;border-bottom:1px solid #f5f5f5;font-size:13px;}
+.sum-table .cat td{background:#f0f6ff;font-weight:800;color:#1565c0;}
+.sum-table .sub td:first-child{padding-right:26px;}
+.sum-table .tot td{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);color:#fff;font-weight:900;}
+.num{font-family:monospace;font-weight:700;color:#15803d;text-align:left;}
+.edit-input{border:1.5px solid #e0e0e0;border-radius:7px;padding:5px 7px;font-size:13px;font-family:monospace;width:115px;text-align:left;direction:ltr;background:#fafafa;}
+.edit-input:focus{border-color:#2979c8;background:#fff;}
+
+/* Holdings */
+.hold-row{background:#fff;border-radius:11px;padding:12px 14px;display:grid;grid-template-columns:70px 1fr auto auto;gap:10px;align-items:center;box-shadow:0 1px 5px rgba(0,0,0,.05);border-right:3px solid #2979c8;margin-bottom:8px;}
+.hold-sym{font-weight:900;font-size:14px;}
+.hold-name{font-size:12px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hold-broker{font-size:11px;color:#aaa;margin-top:1px;}
+.cur-badge{border-radius:5px;padding:2px 6px;font-size:11px;font-weight:700;}
+.cur-ILS{background:#dcfce7;color:#15803d;}
+.cur-USD{background:#dbeafe;color:#1d4ed8;}
+.cur-other{background:#fef3c7;color:#92400e;}
+.hold-val{font-family:monospace;font-weight:800;font-size:14px;color:#15803d;text-align:left;}
+.del-btn{background:none;border:none;color:#ddd;font-size:12px;margin-top:3px;display:block;}
+.del-btn:hover{color:#e53935;}
+
+/* Owners */
+.owners-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+.owner-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.owner-top{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}
+.owner-name{font-weight:800;font-size:15px;}
+.owner-total{font-family:monospace;font-weight:900;font-size:20px;padding:0 16px 14px;}
+.owner-pos{font-size:11px;color:#aaa;margin-top:2px;}
+.icon-btn{background:none;border:1px solid #e0e0e0;border-radius:7px;padding:5px 8px;font-size:12px;color:#666;}
+.icon-btn:hover{border-color:#2979c8;color:#2979c8;}
+.icon-btn.del:hover{border-color:#e53935;color:#e53935;}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(5,12,28,.8);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.modal{background:#fff;border-radius:20px;width:min(600px,96vw);max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.3);}
+.modal-head{background:linear-gradient(135deg,#0f4c81,#2979c8);border-radius:20px 20px 0 0;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;}
+.modal-title{font-size:17px;font-weight:900;color:#fff;}
+.modal-sub{font-size:11px;color:#a8d0f8;margin-top:2px;}
+.modal-close{background:rgba(255,255,255,.15);border:none;border-radius:7px;padding:5px 10px;color:#fff;font-weight:700;}
+.modal-body{padding:20px;}
+
+.modal-tabs{display:flex;gap:4px;background:#f0f4f8;border-radius:10px;padding:4px;margin-bottom:16px;}
+.modal-tab{flex:1;border:none;border-radius:7px;padding:8px;font-size:13px;font-weight:700;background:transparent;color:#888;}
+.modal-tab.active{background:#fff;color:#2979c8;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+
+.dropzone{border:2px dashed #c0d4f0;border-radius:12px;padding:32px;text-align:center;cursor:pointer;background:#fafcff;}
+.dropzone:hover,.dropzone.drag{border-color:#2979c8;background:#f0f6ff;}
+.dropzone-icon{font-size:36px;margin-bottom:8px;}
+.dropzone-title{font-weight:700;font-size:15px;color:#333;margin-bottom:4px;}
+.dropzone-sub{font-size:12px;color:#999;}
+
+.preview-wrap{max-height:200px;overflow-y:auto;border-radius:9px;border:1px solid #e8eef6;margin-bottom:10px;}
+.preview-table th{background:#f8f9fa;padding:7px 9px;font-size:11px;font-weight:700;color:#666;}
+.preview-table td{padding:6px 9px;border-top:1px solid #f0f0f0;font-size:12px;}
+
+.owner-sel{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;justify-content:flex-end;}
+.owner-sel-btn{border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;border:2px solid #e0e0e0;background:#fff;color:#666;}
+.owner-sel-btn.active{border-color:#2979c8;background:#e8f1fb;color:#1565c0;}
+
+.cell-input{border:1.5px solid #e0e0e0;border-radius:7px;padding:5px 7px;font-size:12px;background:#fafafa;width:100%;}
+.cell-input:focus{border-color:#2979c8;}
+.cell-select{border:1.5px solid #e0e0e0;border-radius:7px;padding:5px 4px;font-size:12px;background:#fafafa;}
+.manual-table th{padding:6px 4px;font-size:11px;font-weight:700;color:#666;background:#f8f9fa;}
+.manual-table td{padding:3px 2px;}
+
+.notes-area{width:100%;border:1.5px solid #e0e0e0;border-radius:9px;padding:11px;font-size:14px;resize:vertical;min-height:110px;font-family:inherit;line-height:1.7;}
+.notes-area:focus{border-color:#2979c8;}
+
+.backup-box{background:#f8faff;border-radius:12px;padding:16px;margin-bottom:12px;border:1.5px solid #e0e8f8;}
+.backup-box h3{font-size:14px;font-weight:800;margin-bottom:4px;}
+.backup-box p{font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;}
+
+.tip-box{background:#fffbeb;border-radius:9px;padding:11px 13px;border:1px solid #fde68a;font-size:12px;color:#92400e;line-height:1.8;}
+
+.status-msg{border-radius:9px;padding:9px 13px;margin-bottom:14px;font-size:13px;font-weight:700;text-align:right;}
+.status-ok{background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;}
+.status-err{background:#fff0f0;border:1.5px solid #fca5a5;color:#dc2626;}
+
+/* Lock */
+.lock-screen{position:fixed;inset:0;background:linear-gradient(140deg,#0a1628,#0d2a4a,#1a3a5c);display:flex;align-items:center;justify-content:center;z-index:9999;}
+.lock-box{text-align:center;width:min(280px,90vw);}
+.pin-dots{display:flex;gap:11px;justify-content:center;margin:14px 0;direction:ltr;}
+.pin-dot{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(255,255,255,.3);background:transparent;transition:all .15s;}
+.pin-dot.on{background:#fff;border-color:#fff;}
+.pin-dot.err{background:#f87171;border-color:#f87171;}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;direction:ltr;margin-top:6px;}
+.npbtn{height:56px;border-radius:13px;font-size:21px;font-weight:700;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;}
+.npbtn:active{transform:scale(.93);background:rgba(255,255,255,.2);}
+
+/* Toast */
+.note-btn{background:none;border:1.5px solid #e8eef6;border-radius:7px;padding:3px 7px;font-size:13px;color:#bbb;cursor:pointer;transition:all .15s;}
+.note-btn:hover{border-color:#2979c8;color:#2979c8;background:#f0f6ff;}
+.note-btn.has-note{border-color:#fde68a;background:#fffbeb;color:#92400e;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.3);}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .22s ease;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.shake{animation:shake .32s ease;}
+</style>
+</head>
+<body translate="no">
+<div id="err-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:10px 14px;font-size:13px;z-index:99999;direction:ltr;font-family:monospace;white-space:pre-wrap"></div>
+<div id="app" style="display:none"></div>
+<div id="lock"></div>
+<script>
+(function() {
+'use strict';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+var LS_DATA = 'portfolio_v3_data';
+var LS_PIN  = 'portfolio_v3_pin';
+var LS_HINT = 'portfolio_v3_hint';
+var COLORS  = ['#2979c8','#16a34a','#9333ea','#ea580c','#0891b2'];
+
+var SUMMARY = [
+  {id:'tradable', label:'נכסים סחרים', icon:'📈', color:'#1565c0', sub:[
+    {id:'stocks',  label:'מניות',    icon:'📊'},
+    {id:'bonds',   label:'אג"ח',     icon:'🏛'},
+    {id:'cash',    label:'מזומן',    icon:'💵'},
+    {id:'etf',     label:'תעודות סל',icon:'📦'},
+    {id:'options', label:'אופציות',  icon:'📉'},
+  ]},
+  {id:'pension', label:'נכסי פנסיה', icon:'🏦', color:'#7c3aed', sub:[
+    {id:'hishtalmut', label:'קרן השתלמות',    icon:'💼'},
+    {id:'pension_k',  label:'קרן פנסיה',      icon:'🏦'},
+    {id:'managers',   label:'ביטוח מנהלים',   icon:'📋'},
+    {id:'pension_ind',label:'קרן פנסיה אישית',icon:'👤'},
+    {id:'pension_other', label:'אחר',          icon:'💡'},
+  ]},
+  {id:'realestate', label:'נדל"ן', icon:'🏠', color:'#0891b2', sub:[
+    {id:'re_il',    label:'נדל"ן בישראל', icon:'🏠'},
+    {id:'re_world', label:'נדל"ן בחו"ל',  icon:'🌍'},
+    {id:'re_fund',  label:'קרנות נדל"ן',  icon:'🏢'},
+  ]},
+  {id:'other', label:'אחר', icon:'💡', color:'#ea580c', sub:[
+    {id:'crypto',    label:'קריפטו',          icon:'₿'},
+    {id:'private',   label:'השקעות פרטיות',   icon:'🤝'},
+    {id:'mortgage',  label:'משכנתא',           icon:'🏦', negative:true},
+    {id:'other_a',   label:'אחר',              icon:'💡'},
+  ]},
+  {id:'debts', label:'חובות', icon:'📉', color:'#dc2626', sub:[
+
+    {id:'debt_loan',   label:'הלוואות',               icon:'🏧', negative:true},
+    {id:'debt_other',  label:'חובות אחרים',            icon:'📉', negative:true},
+  ], negative:true},
+];
+
+// ── State ──────────────────────────────────────────────────────────────────
+var S = {
+  owners:      [{id:'o1', name:'בעלים 1'}],
+  holdings:    [],
+  summaryVals: {},
+  summaryNotes:{},
+  notes:       '',
+  tab:         'summary',
+};
+
+// ── Persistence ───────────────────────────────────────────────────────────
+function save() {
+  try { localStorage.setItem(LS_DATA, JSON.stringify({
+    owners:S.owners, holdings:S.holdings, summaryVals:S.summaryVals, summaryNotes:S.summaryNotes, notes:S.notes
+  })); } catch(e) {}
+}
+function load() {
+  try {
+    var d = JSON.parse(localStorage.getItem(LS_DATA)||'null');
+    if (!d) return;
+    if (d.owners && d.owners.length)   S.owners      = d.owners;
+    if (d.holdings && d.holdings.length) S.holdings  = d.holdings;
+    if (d.summaryVals)   S.summaryVals   = d.summaryVals;
+    if (d.summaryNotes) S.summaryNotes = d.summaryNotes;
+    if (d.notes)        S.notes        = d.notes;
+  } catch(e) {}
+}
+function getPin()  { try { return localStorage.getItem(LS_PIN)||''; } catch(e) { return ''; } }
+function getHint() { try { return localStorage.getItem(LS_HINT)||''; } catch(e) { return ''; } }
+function savePin(p,h) {
+  try { localStorage.setItem(LS_PIN,p); if(h) localStorage.setItem(LS_HINT,h); } catch(e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function uid() { return Math.random().toString(36).slice(2,9); }
+function fmt(n) {
+  if (n==null||n===0) return null;
+  return new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS',minimumFractionDigits:0,maximumFractionDigits:0}).format(n);
+}
+function fd(n) { return fmt(n) || '—'; }
+
+function el(tag, attrs) {
+  var e = document.createElement(tag);
+  var children = Array.prototype.slice.call(arguments, 2);
+  if (attrs) {
+    for (var k in attrs) {
+      if (k === 'class') e.className = attrs[k];
+      else if (k === 'style') e.style.cssText = attrs[k];
+      else if (k.substr(0,2) === 'on') e.addEventListener(k.substr(2), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    }
+  }
+  children.forEach(function(c) {
+    if (c==null||c===false||c===undefined) return;
+    if (typeof c === 'string' || typeof c === 'number') e.appendChild(document.createTextNode(String(c)));
+    else if (c.nodeType) e.appendChild(c);
+  });
+  return e;
+}
+function qs(s) { return document.querySelector(s); }
+function toast(msg, bg) {
+  var t = el('div', {class:'toast', style:'background:'+(bg||'#1a1a2e')}, msg);
+  document.body.appendChild(t);
+  setTimeout(function() { if(t.parentNode) t.parentNode.removeChild(t); }, 2400);
+}
+function closeModal() {
+  var o = qs('#overlay');
+  if (o) o.parentNode.removeChild(o);
+}
+function showModal(body, title, sub) {
+  closeModal();
+  var overlay = el('div', {id:'overlay', class:'overlay'});
+  overlay.addEventListener('click', function(e) { if(e.target===overlay) closeModal(); });
+  var modal = el('div', {class:'modal fade-in'});
+  var mh = el('div', {class:'modal-head'},
+    el('button', {class:'modal-close', onclick:closeModal}, '✕'),
+    el('div', {style:'text-align:right'},
+      el('div', {class:'modal-title'}, title),
+      sub ? el('div', {class:'modal-sub'}, sub) : null
+    )
+  );
+  modal.appendChild(mh);
+  var mb = el('div', {class:'modal-body'});
+  mb.appendChild(body);
+  modal.appendChild(mb);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+// ── Currency ──────────────────────────────────────────────────────────────
+var _rates = null;
+function getRates() {
+  if (_rates) return Promise.resolve(_rates);
+  return fetch('https://open.er-api.com/v6/latest/ILS')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _rates = {ILS:1};
+      for (var c in d.rates) _rates[c] = 1/d.rates[c];
+      return _rates;
+    })
+    .catch(function() {
+      _rates = {USD:3.72,EUR:4.05,GBP:4.75,JPY:0.025,CHF:4.20,AUD:2.42,CAD:2.75,ILS:1};
+      return _rates;
+    });
+}
+function toILS(val, cur, rates) {
+  if (!val || !cur || cur==='ILS' || !rates) return val;
+  var r = rates[cur.toUpperCase()];
+  return r ? Math.round(val*r) : val;
+}
+function numClean(v) {
+  return parseFloat((v||'').toString().replace(/[₪$€£,\s%]/g,''))||null;
+}
+
+// ── File Parser ───────────────────────────────────────────────────────────
+function parseRows(rows, src, rates) {
+  if (!rows||rows.length<2) return [];
+  var headers = rows[0].map(function(h){ return (h||'').toString().trim().toLowerCase(); });
+  function fi() {
+    var keys = Array.prototype.slice.call(arguments);
+    return headers.findIndex(function(h){ return keys.some(function(k){ return h.includes(k); }); });
+  }
+  var symI   = fi('symbol','סימול','ticker','נייר','code');
+  var nameI  = fi('name','שם','description','תיאור','security','נכס');
+  var qtyI   = fi('quantity','qty','כמות','shares','units','יחידות');
+  var priceI = fi('price','מחיר','שער','close','last','rate');
+  var valI   = fi('value','שווי','market value','צבירה','יתרה','balance','total','סכום');
+  var brkI   = fi('broker','ברוקר','company','חברה','institution','bank');
+  var curI   = fi('currency','מטבע','cur','ccy');
+  var res = [];
+  for (var i=1; i<rows.length; i++) {
+    var row = rows[i];
+    if (!row||!row.some(function(v){ return (v||'').toString().trim(); })) continue;
+    function c(j) { return j>=0 ? (row[j]||'').toString().trim() : ''; }
+    var sym  = c(symI);
+    var name = c(nameI)||sym;
+    var rawV = c(valI);
+    var val  = numClean(rawV);
+    if (!sym&&!name&&!val) continue;
+    var cur  = (curI>=0 ? detectCur(c(curI)) : null) || detectCur(rawV) || 'ILS';
+    res.push({
+      id:uid(),
+      symbol: (sym||name).toString().slice(0,20)||'—',
+      name:   (name||sym||'').toString().slice(0,80)||'—',
+      qty:    numClean(c(qtyI)),
+      price:  numClean(c(priceI)),
+      valueOrig: val,
+      currency:  cur,
+      value:     rates ? toILS(val, cur, rates) : val,
+      broker: (c(brkI)||src||'').slice(0,40),
+      source: (src||'').slice(0,40),
+    });
+  }
+  return res;
+}
+function detectCur(text) {
+  if (!text) return null;
+  var t = text.toString().trim();
+  var syms = {'₪':'ILS','$':'USD','€':'EUR','£':'GBP'};
+  for (var s in syms) { if(t.startsWith(s)||t.endsWith(s)) return syms[s]; }
+  var lower = t.toLowerCase();
+  var names = {usd:'USD',dollar:'USD',eur:'EUR',euro:'EUR',gbp:'GBP',pound:'GBP',
+    jpy:'JPY',yen:'JPY',chf:'CHF',aud:'AUD',cad:'CAD',
+    ils:'ILS',nis:'ILS','שקל':'ILS','דולר':'USD','אירו':'EUR'};
+  for (var n in names) { if(lower===n||lower.includes(n)) return names[n]; }
+  return null;
+}
+function parseSpreadsheetML(xmlText, fileName, rates) {
+  // Parses SpreadsheetML format (.xls from Israeli brokers like מיטב, IBI web export)
+  // Format: XML with <Workbook><Worksheet><Table><Row><Cell><Data>
+  var results = [];
+  var src = fileName.replace(/\.[^.]+$/, '');
+
+  try {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(xmlText, 'text/xml');
+    var ss = 'urn:schemas-microsoft-com:office:spreadsheet';
+
+    var sheets = doc.getElementsByTagNameNS(ss, 'Worksheet');
+    for (var si = 0; si < sheets.length; si++) {
+      var sheet = sheets[si];
+      var rows = sheet.getElementsByTagNameNS(ss, 'Row');
+      if (!rows.length) continue;
+
+      // Convert to array of string arrays
+      var table = [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri];
+        var cells = row.getElementsByTagNameNS(ss, 'Cell');
+        var rowArr = [];
+        var colIdx = 0;
+        for (var ci = 0; ci < cells.length; ci++) {
+          var cell = cells[ci];
+          // Handle ss:Index for sparse rows
+          var idxAttr = cell.getAttributeNS(ss, 'Index');
+          if (idxAttr) {
+            var targetIdx = parseInt(idxAttr) - 1;
+            while (colIdx < targetIdx) { rowArr.push(''); colIdx++; }
+          }
+          var dataEl = cell.getElementsByTagNameNS(ss, 'Data')[0];
+          rowArr.push(dataEl ? (dataEl.textContent || '') : '');
+          colIdx++;
+        }
+        table.push(rowArr);
+      }
+
+      // Find header row: the row that contains recognizable column headers
+      var headerIdx = -1;
+      var symCol=-1, nameCol=-1, qtyCol=-1, priceCol=-1, valCol=-1;
+      for (var ri2 = 0; ri2 < Math.min(table.length, 10); ri2++) {
+        var row2 = table[ri2];
+        var joined = row2.join(' ').toLowerCase();
+        if (joined.includes('שם הנייר') || joined.includes('שם נייר') ||
+            joined.includes('security') || joined.includes('שווי אחזקה') ||
+            joined.includes('market value')) {
+          headerIdx = ri2;
+          row2.forEach(function(h, i) {
+            var hl = h.toLowerCase();
+            if (hl.includes('מספר נייר') || hl.includes('symbol') || hl.includes('ticker')) symCol=i;
+            else if (hl.includes('שם הנייר') || hl.includes('שם נייר') || hl.includes('name') || hl.includes('security')) nameCol=i;
+            else if (hl.includes('כמות') || hl.includes('quantity') || hl.includes('qty') || hl.includes('shares')) qtyCol=i;
+            else if (hl.includes('שער אחרון') || hl.includes('מחיר') || hl.includes('price') || hl.includes('שער')) { if(priceCol<0) priceCol=i; }
+            else if (hl.includes('שווי') || hl.includes('value') || hl.includes('balance')) valCol=i;
+          });
+          break;
+        }
+      }
+
+      if (headerIdx < 0) {
+        // No recognized header — try generic parseRows
+        var r = parseRows(table, fileName, rates);
+        results = results.concat(r);
+        continue;
+      }
+
+      // Parse data rows
+      for (var ri3 = headerIdx+1; ri3 < table.length; ri3++) {
+        var row3 = table[ri3];
+        if (!row3.some(function(v){return v.trim();})) continue;
+        function cv(i) { return i>=0 && row3[i] ? row3[i].toString().trim() : ''; }
+        var sym  = cv(symCol);
+        var name = cv(nameCol) || sym;
+        var val  = parseFloat(cv(valCol).replace(/[,\s]/g,''))||null;
+        if (!name && !val) continue;
+        // Skip summary/total rows
+        if (name.includes('סה"כ') || name.includes('סהכ') || name.includes('total')) continue;
+        var qty   = parseFloat(cv(qtyCol).replace(/[,\s]/g,''))||null;
+        var price = parseFloat(cv(priceCol).replace(/[,\s]/g,''))||null;
+        results.push({
+          id: uid(),
+          symbol: (sym || name).slice(0,20) || '—',
+          name:   name.slice(0,80) || '—',
+          qty:    qty,
+          price:  price,
+          valueOrig: val,
+          currency: 'ILS',
+          value:  val,
+          broker: src,
+          source: src,
+        });
+      }
+    }
+  } catch(e) {
+    console.error('SpreadsheetML parse error:', e);
+    throw new Error('שגיאה בקריאת קובץ Excel: ' + e.message);
+  }
+  return results.slice(0, 2000);
+}
+
+function parseFile(file) {
+  var name = file.name.toLowerCase();
+  if (file.size > 10*1024*1024) return Promise.reject(new Error('הקובץ גדול מדי (מעל 10MB)'));
+  return getRates().then(function(rates) {
+    if (name.endsWith('.csv')||name.endsWith('.tsv')||name.endsWith('.txt')) {
+      return file.text().then(function(text) {
+        var lines = text.trim().split(/\r?\n/).filter(Boolean);
+        var delim = lines[0].includes('\t') ? '\t' : ',';
+        var rows = lines.map(function(l){
+          return l.split(delim).map(function(v){ return v.trim().replace(/^"|"$/g,''); });
+        });
+        return parseRows(rows, file.name, rates).slice(0,2000);
+      });
+    }
+    if (name.endsWith('.xlsx')||name.endsWith('.xls')||name.endsWith('.xlsm')) {
+      return file.text().then(function(text) {
+        // Check if it's SpreadsheetML (XML-based .xls exported by Israeli brokers)
+        var stripped = text.trim();
+        if (stripped.indexOf('<?xml') >= 0 && stripped.indexOf('Workbook') >= 0 && stripped.indexOf('spreadsheet') >= 0) {
+          return parseSpreadsheetML(stripped, file.name, rates);
+        }
+        // Real binary Excel — use XLSX.js
+        if (typeof XLSX === 'undefined') throw new Error('ספריית Excel לא נטענה — בדוק חיבור לאינטרנט');
+        return file.arrayBuffer().then(function(buf) {
+          var wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+          var results = [];
+          wb.SheetNames.forEach(function(sn) {
+            try {
+              var ws = wb.Sheets[sn];
+              if (!ws) return;
+              var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+              if (rows&&rows.length>1) {
+                var r = parseRows(rows, file.name+'['+sn+']', rates);
+                results = results.concat(r);
+              }
+            } catch(e) { console.warn('Sheet error:',e); }
+          });
+          return results.slice(0,2000);
+        });
+      });
+    }
+    if (name.endsWith('.pdf')) {
+      return Promise.reject(new Error('PDF_MANUAL'));
+    }
+    return Promise.reject(new Error('פורמט לא נתמך: '+file.name));
+  });
+}
+
+// ── Summary helpers ───────────────────────────────────────────────────────
+function getVal(itemId, ownerId) {
+  var v = parseFloat((S.summaryVals[itemId]||{})[ownerId])||0;
+  return v;
+}
+function isNegItem(itemId) {
+  var neg = false;
+  SUMMARY.forEach(function(cat) {
+    cat.sub.forEach(function(item) {
+      if (item.id === itemId && item.negative) neg = true;
+    });
+  });
+  return neg;
+}
+function ownerTotal(ownerId) {
+  var t = 0;
+  SUMMARY.forEach(function(cat) {
+    cat.sub.forEach(function(item) {
+      var v = getVal(item.id, ownerId);
+      // Negative items (mortgage, debts) are stored negative, so just add them
+      t += v;
+    });
+  });
+  // If no manual vals, sum holdings
+  var hasManu = SUMMARY.some(function(cat){
+    return cat.sub.some(function(item){ return getVal(item.id,ownerId)>0; });
+  });
+  if (!hasManu) {
+    S.holdings.filter(function(h){ return h.ownerId===ownerId; })
+      .forEach(function(h){ t += h.value||0; });
+  }
+  return t;
+}
+function ownerHoldings(ownerId) {
+  return S.holdings.filter(function(h){ return h.ownerId===ownerId; });
+}
+function syncFromHoldings() {
+  S.owners.forEach(function(o) {
+    var hs = ownerHoldings(o.id);
+    hs.forEach(function(h) {
+      var name = (h.name||'').toLowerCase();
+      var cat = 'stocks';
+      if (name.includes('אגח')||name.includes('אג"ח')||name.includes('bond')) cat='bonds';
+      else if (name.includes('כספ')||name.includes('מזומן')||name.includes('cash')||name.includes('יתרה')) cat='cash';
+      else if (name.includes('etf')||name.includes('קרן סל')) cat='etf';
+      else if (name.includes('השתלמות')) cat='hishtalmut';
+      else if (name.includes('פנסי')) cat='pension_k';
+      else if (name.includes('מנהלים')) cat='managers';
+      else if (name.includes('נדל')) cat='re_il';
+      else if (name.includes('קריפטו')||name.includes('crypto')||name.includes('bitcoin')) cat='crypto';
+      if (!S.summaryVals[cat]) S.summaryVals[cat]={};
+      S.summaryVals[cat][o.id] = (S.summaryVals[cat][o.id]||0) + (h.value||0);
+    });
+  });
+  save();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  var app = qs('#app');
+  app.innerHTML = '';
+  app.appendChild(renderHeader());
+  app.appendChild(renderTabs());
+  var content = el('div', {class:'content'});
+  content.appendChild(renderSummary());
+  content.appendChild(renderHoldings());
+  content.appendChild(renderOwners());
+  app.appendChild(content);
+}
+
+function renderHeader() {
+  var pin = getPin();
+  return el('div', {class:'header'},
+    el('div', {class:'hbtns'},
+      el('button', {class:'hbtn', onclick:openBackup}, '💾 גיבוי'),
+      el('button', {class:'hbtn', onclick:openNotes}, '📝 הערות'),
+      pin ? el('button', {class:'hbtn', onclick:function(){
+        qs('#app').style.display='none';
+        showLock();
+      }}, '🔒') : null,
+      el('button', {class:'hbtn', onclick:openPinSetup}, pin?'🔑 שנה קוד':'🔑 קוד')
+    ),
+    el('div', {style:'display:flex;align-items:center;gap:8px'},
+      el('h1', {}, 'ניהול תיק השקעות'),
+      el('span', {style:'font-size:22px'}, '💼')
+    )
+  );
+}
+
+function renderTabs() {
+  var tabs = [{id:'summary',label:'📊 סיכום'},{id:'holdings',label:'📂 אחזקות'},{id:'owners',label:'👥 בעלים'}];
+  var bar = el('div', {class:'tabs'});
+  tabs.forEach(function(t) {
+    bar.appendChild(el('button', {
+      class:'tab'+(S.tab===t.id?' active':''),
+      onclick:function(){ S.tab=t.id; render(); }
+    }, t.label));
+  });
+  return bar;
+}
+
+function renderSummary() {
+  var sec = el('div', {class:'section'+(S.tab==='summary'?' active':'')});
+  var holdTotal = S.holdings.reduce(function(s,h){return s+(h.value||0);},0);
+  var btns = el('div', {class:'action-btns'});
+  btns.appendChild(el('button', {class:'btn-primary', onclick:openAddData}, '+ הוסף נתונים'));
+  if (holdTotal>0) {
+    btns.appendChild(el('button', {class:'btn-secondary', onclick:function(){
+      syncFromHoldings(); render(); toast('✅ סיכום עודכן מאחזקות','#15803d');
+    }}, '🔄 עדכן מאחזקות'));
+  }
+  sec.appendChild(el('div', {class:'action-bar'},
+    btns,
+    el('div', {},
+      el('h2', {}, 'סיכום תיק'),
+      holdTotal>0 ? el('div', {style:'font-size:12px;color:#2979c8;margin-top:2px'}, 'אחזקות מיובאות: '+fd(holdTotal)) : null
+    )
+  ));
+
+  var card = el('div', {class:'card'});
+  var wrap = el('div', {style:'overflow-x:auto'});
+  var tbl  = el('table', {class:'sum-table'});
+  // Header
+  var htr = el('tr');
+  htr.appendChild(el('th', {}, 'קטגוריה'));
+  S.owners.forEach(function(o){ htr.appendChild(el('th', {style:'text-align:center'}, o.name)); });
+  htr.appendChild(el('th', {style:'text-align:center'}, 'סה"כ'));
+  htr.appendChild(el('th', {style:'text-align:center;width:32px'}, '📝'));
+  tbl.appendChild(el('thead', {}, htr));
+  var tbody = el('tbody');
+
+  SUMMARY.forEach(function(cat) {
+    // Category totals
+    var catOwnerTot = {};
+    var catTot = 0;
+    S.owners.forEach(function(o){
+      var s=0; cat.sub.forEach(function(item){ s+=getVal(item.id,o.id); });
+      catOwnerTot[o.id]=s; catTot+=s;
+    });
+    var ctr = el('tr', {class:'cat'});
+    ctr.appendChild(el('td', {style:'color:'+cat.color+';padding-right:14px;font-weight:800'}, cat.icon+' '+cat.label));
+    S.owners.forEach(function(o){
+      ctr.appendChild(el('td', {class:'num', style:'text-align:center'}, fd(catOwnerTot[o.id])));
+    });
+    var isCatTotNeg = catTot < 0;
+    ctr.appendChild(el('td', {class:'num', style:'text-align:center;font-weight:900'+(isCatTotNeg?';color:#dc2626':'')}, catTot ? fd(catTot) : '—'));
+    ctr.appendChild(el('td', {})); // empty notes cell for category rows
+    tbody.appendChild(ctr);
+
+    cat.sub.forEach(function(item) {
+      var tr = el('tr', {class:'sub'});
+      tr.appendChild(el('td', {}, item.icon+' '+item.label));
+      var isNeg = isNegItem(item.id);
+      var rowTot = 0;
+      S.owners.forEach(function(o) {
+        var v = getVal(item.id, o.id);
+        rowTot += v;
+        var inp = el('input', {
+          class:'edit-input', type:'text', value:v ? Math.round(Math.abs(v)).toLocaleString('he-IL') : '', placeholder:'0',
+          style: isNeg ? 'border-color:#fca5a5' : '',
+          onchange:function(e) {
+            if (!S.summaryVals[item.id]) S.summaryVals[item.id]={};
+            var parsed = parseFloat(e.target.value.replace(/[,₪\s]/g,'').replace(/^-/,''))||0;
+            S.summaryVals[item.id][o.id] = isNegItem(item.id) ? -Math.abs(parsed) : parsed;
+            save(); render();
+          }
+        });
+        var tdCell = el('td', {style:'text-align:center'}, inp);
+        if (isNeg && !v && (item.id==='mortgage'||item.id==='debt_loan'||item.id==='debt_other')) tdCell.appendChild(el('div',{style:'font-size:9px;color:#dc2626;margin-top:2px'},'הכנס סכום חיובי'));
+        tr.appendChild(tdCell);
+      });
+      var rowIsNeg = rowTot < 0;
+      tr.appendChild(el('td', {class:'num', style:'text-align:center'+(rowIsNeg?';color:#dc2626':'')}, rowTot ? fd(rowTot) : '—'));
+      // Notes cell
+      (function(iid) {
+        var noteVal = (S.summaryNotes[iid] && S.summaryNotes[iid]['_']) || '';
+        var noteBtn = el('button', {
+          class: 'note-btn' + (noteVal ? ' has-note' : ''),
+          title: noteVal || 'הוסף הערה',
+          onclick: function() { openNoteEdit(iid, noteBtn); }
+        }, noteVal ? '📝' : '＋');
+        tr.appendChild(el('td', {style:'text-align:center;padding:4px'}, noteBtn));
+      })(item.id);
+      tbody.appendChild(tr);
+    });
+  });
+
+  // Total row
+  var totTr = el('tr', {class:'tot'});
+  totTr.appendChild(el('td', {style:'padding-right:14px'}, '💰 סה"כ שווי נטו'));
+  var grand = 0;
+  S.owners.forEach(function(o) {
+    var t = ownerTotal(o.id); grand += t;
+    totTr.appendChild(el('td', {style:'text-align:center;font-family:monospace;font-size:14px'}, fd(t)));
+  });
+  var grandNeg = grand < 0;
+  totTr.appendChild(el('td', {style:'text-align:center;font-family:monospace;font-size:15px'+(grandNeg?';color:#f87171':'')}, fd(grand)));
+  totTr.appendChild(el('td', {}));
+  tbody.appendChild(totTr);
+
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+  card.appendChild(wrap);
+  sec.appendChild(card);
+  return sec;
+}
+
+function renderHoldings() {
+  var sec = el('div', {class:'section'+(S.tab==='holdings'?' active':'')});
+  sec.appendChild(el('div', {class:'action-bar'},
+    el('button', {class:'btn-primary', onclick:openAddData}, '+ הוסף נתונים'),
+    el('h2', {}, 'אחזקות')
+  ));
+  if (!S.holdings.length) {
+    sec.appendChild(el('div', {class:'card', style:'text-align:center;padding:36px;color:#aaa'},
+      el('div', {style:'font-size:36px;margin-bottom:10px'}, '📂'),
+      el('div', {style:'font-weight:700;font-size:15px'}, 'אין אחזקות עדיין')
+    ));
+    return sec;
+  }
+  S.owners.forEach(function(o, oi) {
+    var hs = ownerHoldings(o.id);
+    if (!hs.length) return;
+    var col = COLORS[oi%COLORS.length];
+    var card = el('div', {class:'card', style:'border-top:4px solid '+col});
+    card.appendChild(el('div', {class:'card-head'},
+      el('span', {style:'color:'+col}, o.name),
+      el('span', {style:'font-size:12px;background:#dbeafe;color:#1d4ed8;border-radius:16px;padding:3px 9px;font-weight:700'}, hs.length+' פוזיציות')
+    ));
+    var body = el('div', {class:'card-body'});
+    hs.forEach(function(h) {
+      var cur = h.currency||'ILS';
+      var curCls = cur==='ILS'?'cur-ILS':cur==='USD'?'cur-USD':'cur-other';
+      var right = el('div', {style:'text-align:left;min-width:80px'});
+      right.appendChild(el('div', {class:'hold-val'}, fd(h.value)));
+      if (cur!=='ILS'&&h.valueOrig) right.appendChild(el('div',{style:'font-size:10px;color:#aaa'}, h.valueOrig.toLocaleString()));
+      var delBtn = el('button', {class:'del-btn'}, '✕ מחק');
+      delBtn.onclick = (function(id){ return function(){
+        if(confirm('למחוק?')){ S.holdings=S.holdings.filter(function(x){return x.id!==id;}); save(); render(); }
+      }; })(h.id);
+      right.appendChild(delBtn);
+      body.appendChild(el('div', {class:'hold-row', style:'border-right-color:'+col},
+        el('div', {class:'hold-sym'}, h.symbol),
+        el('div', {},
+          el('div', {class:'hold-name'}, h.name),
+          el('div', {class:'hold-broker'}, h.broker)
+        ),
+        el('span', {class:'cur-badge '+curCls}, cur),
+        right
+      ));
+    });
+    card.appendChild(body);
+    sec.appendChild(card);
+  });
+  return sec;
+}
+
+function renderOwners() {
+  var sec = el('div', {class:'section'+(S.tab==='owners'?' active':'')});
+  sec.appendChild(el('div', {class:'action-bar'},
+    el('button', {class:'btn-primary', onclick:function(){
+      var name = prompt('שם הבעלים החדש:');
+      if (name&&name.trim()) { S.owners.push({id:uid(),name:name.trim()}); save(); render(); }
+    }}, '+ הוסף בעלים'),
+    el('h2', {}, 'בעלים')
+  ));
+  var grid = el('div', {class:'owners-grid'});
+  S.owners.forEach(function(o, i) {
+    var col = COLORS[i%COLORS.length];
+    var card = el('div', {class:'owner-card', style:'border-top:4px solid '+col});
+    var acts = el('div', {style:'display:flex;gap:5px'});
+    acts.appendChild(el('button', {class:'icon-btn', onclick:function(){
+      var n=prompt('שם חדש:',o.name); if(n&&n.trim()){o.name=n.trim();save();render();}
+    }}, '✏️'));
+    acts.appendChild(el('button', {class:'icon-btn del', onclick:function(){
+      if(confirm('למחוק '+o.name+'?')){ S.owners=S.owners.filter(function(x){return x.id!==o.id;}); S.holdings=S.holdings.filter(function(x){return x.ownerId!==o.id;}); save(); render(); }
+    }}, '🗑'));
+    card.appendChild(el('div', {class:'owner-top'},
+      el('div', {class:'owner-name', style:'color:'+col}, o.name),
+      acts
+    ));
+    var hs = ownerHoldings(o.id);
+    card.appendChild(el('div', {class:'owner-total'},
+      el('div', {}, fd(ownerTotal(o.id))||'—'),
+      el('div', {class:'owner-pos'}, hs.length+' פוזיציות')
+    ));
+    grid.appendChild(card);
+  });
+  sec.appendChild(grid);
+  return sec;
+}
+
+// ── Add Data Modal ────────────────────────────────────────────────────────
+function openAddData() {
+  var activeTab = 'file';
+  var preview   = null;
+  var selOwner  = S.owners[0]&&S.owners[0].id||'';
+  var manRows   = [{symbol:'',name:'',broker:'',qty:'',price:'',value:'',currency:'ILS'}];
+  var pdfMode   = false;
+
+  var wrap = el('div', {});
+
+  function rebuild() {
+    wrap.innerHTML = '';
+
+    // Owner selector
+    var osel = el('div', {style:'margin-bottom:14px'});
+    osel.appendChild(el('div', {style:'font-size:12px;font-weight:700;color:#555;margin-bottom:7px;text-align:right'}, 'שייך ל-'));
+    var obtnRow = el('div', {class:'owner-sel'});
+    S.owners.forEach(function(o,i){
+      var b = el('button', {
+        class:'owner-sel-btn'+(selOwner===o.id?' active':''),
+        style:selOwner===o.id?'border-color:'+COLORS[i%5]+';background:'+COLORS[i%5]+'22;color:'+COLORS[i%5]:'',
+        onclick:function(){ selOwner=o.id; rebuild(); }
+      }, o.name);
+      obtnRow.appendChild(b);
+    });
+    osel.appendChild(obtnRow);
+    wrap.appendChild(osel);
+
+    // Tabs
+    var tabBar = el('div', {class:'modal-tabs'});
+    [{id:'file',label:'📂 ייבוא קובץ'},{id:'manual',label:'✏️ הכנסה ידנית'}].forEach(function(t){
+      tabBar.appendChild(el('button', {
+        class:'modal-tab'+(activeTab===t.id?' active':''),
+        onclick:function(){ activeTab=t.id; preview=null; pdfMode=false; rebuild(); }
+      }, t.label));
+    });
+    wrap.appendChild(tabBar);
+
+    if (activeTab==='file') {
+      if (!preview) {
+        var fi = el('input', {type:'file', accept:'.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.pdf', style:'display:none'});
+        var dz = el('div', {class:'dropzone'},
+          el('div', {class:'dropzone-icon'}, '📂'),
+          el('div', {class:'dropzone-title'}, 'גרור קובץ לכאן או לחץ לבחירה'),
+          el('div', {class:'dropzone-sub'}, 'CSV · Excel (.xlsx) · PDF')
+        );
+        function doLoad(file) {
+          dz.innerHTML = '<div style="text-align:center;padding:20px;color:#2979c8"><div style="font-size:28px;margin-bottom:6px">⏳</div><div style="font-weight:600">מנתח...</div></div>';
+          parseFile(file).then(function(rows) {
+            if (rows&&rows.length>0) preview={rows:rows,fileName:file.name};
+            else preview={rows:[],fileName:file.name,error:'לא זוהו נתונים'};
+            rebuild();
+          }).catch(function(e) {
+            if (e.message==='PDF_MANUAL') { activeTab='manual'; pdfMode=true; preview=null; rebuild(); }
+            else { preview={rows:[],fileName:file.name,error:e.message}; rebuild(); }
+          });
+        }
+        fi.onchange = function(e){ if(e.target.files[0]) doLoad(e.target.files[0]); };
+        dz.onclick = function(){ fi.click(); };
+        dz.ondragover = function(e){ e.preventDefault(); dz.classList.add('drag'); };
+        dz.ondragleave = function(){ dz.classList.remove('drag'); };
+        dz.ondrop = function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) doLoad(e.dataTransfer.files[0]); };
+        wrap.appendChild(dz);
+        wrap.appendChild(fi);
+      } else {
+        // Preview
+        var phdr = el('div', {style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-direction:row-reverse'});
+        phdr.appendChild(el('div', {},
+          el('div', {style:'font-weight:800;font-size:14px'}, 'תצוגה מקדימה'),
+          el('div', {style:'font-size:12px;color:#888'}, preview.fileName+(preview.error?' · ⚠️ שגיאה':' · '+preview.rows.length+' רשומות'))
+        ));
+        phdr.appendChild(el('button', {style:'background:none;border:none;color:#2979c8;font-size:12px;font-weight:700;cursor:pointer;', onclick:function(){preview=null;rebuild();}}, '← החלף'));
+        wrap.appendChild(phdr);
+
+        if (preview.error) {
+          wrap.appendChild(el('div', {style:'background:#fff0f0;border-radius:10px;padding:16px;text-align:center;color:#dc2626'},
+            el('div', {style:'font-size:26px;margin-bottom:5px'}, '⚠️'),
+            el('div', {style:'font-weight:700;margin-bottom:4px'}, 'שגיאה בקריאת הקובץ'),
+            el('div', {style:'font-size:11px;direction:ltr;font-family:monospace'}, preview.error)
+          ));
+        } else if (!preview.rows.length) {
+          wrap.appendChild(el('div', {style:'background:#fff0f0;border-radius:10px;padding:16px;text-align:center;color:#dc2626'},
+            el('div', {style:'font-size:26px;margin-bottom:5px'}, '⚠️'),
+            el('div', {style:'font-weight:700'}, 'לא זוהו נתונים בקובץ')
+          ));
+        } else {
+          var tblWrap = el('div', {class:'preview-wrap'});
+          var tbl = el('table', {class:'preview-table'});
+          tbl.appendChild(el('thead',{},el('tr',{},
+            el('th',{},'סימול'),el('th',{},'שם'),el('th',{},'מטבע'),el('th',{style:'text-align:left'},'שווי ₪')
+          )));
+          var tbody = el('tbody');
+          preview.rows.forEach(function(r){
+            var cur=r.currency||'ILS';
+            tbody.appendChild(el('tr',{},
+              el('td',{style:'font-weight:700'},r.symbol||'—'),
+              el('td',{style:'max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#555'},r.name||'—'),
+              el('td',{},el('span',{class:'cur-badge '+(cur==='ILS'?'cur-ILS':cur==='USD'?'cur-USD':'cur-other')},cur)),
+              el('td',{style:'text-align:left;font-family:monospace;font-weight:700;color:#15803d'},r.value?fd(r.value):'—')
+            ));
+          });
+          tbl.appendChild(tbody);
+          tblWrap.appendChild(tbl);
+          wrap.appendChild(tblWrap);
+
+          var tot = preview.rows.reduce(function(s,r){return s+(r.value||0);},0);
+          if (tot>0) wrap.appendChild(el('div',{style:'background:#f0fdf4;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:600;color:#15803d;text-align:right'}, 'סה"כ: '+fd(tot)+' · '+preview.rows.length+' רשומות'));
+
+          var importBtn = el('button', {class:'btn-primary', style:'width:100%;padding:12px;font-size:14px;font-weight:800'}, '✓ ייבא '+preview.rows.length+' רשומות');
+          importBtn.onclick = function() {
+            preview.rows.forEach(function(r){ r.ownerId=selOwner; S.holdings.push(r); });
+            save(); render(); closeModal();
+            toast('✅ '+preview.rows.length+' רשומות נוספו','#15803d');
+          };
+          wrap.appendChild(importBtn);
+        }
+      }
+
+    } else {
+      // Manual tab
+      if (pdfMode) {
+        wrap.appendChild(el('div', {class:'tip-box', style:'margin-bottom:14px'},
+          el('strong',{},'📋 הכנסה ידנית מדוח IBI'), el('br',{}),
+          'קבצי PDF של IBI מוצפנים. פתח את הדוח ועבור לחלק ',
+          el('strong',{},'פירוט יתרות'),'. הכנס:', el('br',{}),
+          '• שם נייר  • כמות  • שווי נייר בשקלים (לא עלות רכישה)'
+        ));
+      }
+      // Build rows as cards — one row per holding, clearly labeled
+      var rowsDiv = el('div', {style:'display:flex;flex-direction:column;gap:10px;margin-bottom:14px'});
+      manRows.forEach(function(r, i){
+        var card = el('div', {style:'background:#f8faff;border:1.5px solid #dde8f8;border-radius:12px;padding:14px 16px;position:relative'});
+
+        // Row number
+        card.appendChild(el('div',{style:'font-size:11px;font-weight:700;color:#aaa;margin-bottom:10px;text-align:right'},'נייר '+(i+1)));
+
+        // Delete button top left
+        var delBtn=el('button',{style:'position:absolute;top:10px;left:12px;background:none;border:none;color:#ccc;font-size:16px;cursor:pointer;line-height:1'},'✕');
+        delBtn.onclick=(function(j){return function(){ manRows.splice(j,1); rebuild(); };})(i);
+        card.appendChild(delBtn);
+
+        // Row 1: שם נייר + סימול
+        var r1=el('div',{style:'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px'});
+
+        function fieldWithHint(label, key, ph, hint) {
+          var w=el('div',{});
+          var lbl=el('div',{style:'font-size:11px;font-weight:700;color:#666;margin-bottom:4px;text-align:right'});
+          lbl.appendChild(document.createTextNode(label));
+          if(hint) lbl.appendChild(el('span',{style:'font-weight:400;color:#aaa;font-size:10px'},' — '+hint));
+          w.appendChild(lbl);
+          var inp=el('input',{class:'cell-input',value:r[key]||'',placeholder:ph});
+          if(key==='value'||key==='qty'||key==='price') inp.style.direction='ltr';
+          inp.oninput=(function(k){return function(e){manRows[i][k]=e.target.value;};})(key);
+          w.appendChild(inp);
+          return w;
+        }
+        r1.appendChild(fieldWithHint('שם נייר', 'name', 'לדוג׳: בזק, APPLE', ''));
+        r1.appendChild(fieldWithHint('סימול', 'symbol', 'לדוג׳: BEZQ, AAPL', 'אם לא ידוע — השאר ריק'));
+        card.appendChild(r1);
+
+        // Row 2: שווי + מטבע + ברוקר
+        var r2=el('div',{style:'display:grid;grid-template-columns:1fr auto 1fr;gap:10px;margin-bottom:10px'});
+        r2.appendChild(fieldWithHint('שווי', 'value', '66,809', 'הסכום בפועל בתיק'));
+
+        var curWrap=el('div',{});
+        curWrap.appendChild(el('div',{style:'font-size:11px;font-weight:700;color:#666;margin-bottom:4px;text-align:right'},'מטבע'));
+        var sel=el('select',{class:'cell-select',style:'width:100%;padding:7px 5px'});
+        ['ILS ₪','USD $','EUR €','GBP £','JPY ¥','CHF','AUD','CAD'].forEach(function(c){
+          var val=c.split(' ')[0];
+          var opt=el('option',{value:val},c);
+          if(val===(r.currency||'ILS')) opt.selected=true;
+          sel.appendChild(opt);
+        });
+        sel.onchange=(function(j){return function(e){manRows[j].currency=e.target.value;};})(i);
+        curWrap.appendChild(sel);
+        r2.appendChild(curWrap);
+
+        r2.appendChild(fieldWithHint('ברוקר / מוסד', 'broker', 'IBI, מיטב, מנורה...', ''));
+        card.appendChild(r2);
+
+        // Row 3: כמות + מחיר (optional)
+        var r3=el('div',{style:'display:grid;grid-template-columns:1fr 1fr;gap:10px'});
+        r3.appendChild(fieldWithHint('כמות יחידות', 'qty', '163', 'אופציונלי'));
+        r3.appendChild(fieldWithHint('מחיר ליחידה', 'price', '41,750', 'אופציונלי'));
+        card.appendChild(r3);
+
+        rowsDiv.appendChild(card);
+      });
+      wrap.appendChild(rowsDiv);
+      wrap.appendChild(el('div',{style:'margin-bottom:14px;text-align:right'},
+        el('button',{class:'btn-secondary',onclick:function(){ manRows.push({symbol:'',name:'',broker:'',qty:'',price:'',value:'',currency:'ILS'}); rebuild(); }}, '+ הוסף נייר נוסף')
+      ));
+      var hasData = manRows.some(function(r){return r.symbol||r.name;});
+      var addBtn = el('button',{class:'btn-primary',style:'width:100%;padding:12px;font-size:14px;font-weight:800;'+(hasData?'':'background:#ccc;')}, '✓ הוסף '+(hasData?manRows.filter(function(r){return r.symbol||r.name;}).length:0)+' רשומות');
+      addBtn.onclick = function() {
+        if (!hasData) return;
+        getRates().then(function(rates){
+          var valid = manRows.filter(function(r){return r.symbol||r.name;}).map(function(r){
+            var val = parseFloat(r.value)||null;
+            return {
+              id:uid(), symbol:(r.symbol||r.name||'').slice(0,20)||'—',
+              name:(r.name||r.symbol||'').slice(0,80)||'—',
+              qty:parseFloat(r.qty)||null, price:parseFloat(r.price)||null,
+              valueOrig:val, currency:r.currency||'ILS',
+              value:toILS(val,r.currency||'ILS',rates),
+              broker:r.broker||'ידני', source:'ידני', ownerId:selOwner
+            };
+          });
+          valid.forEach(function(v){S.holdings.push(v);});
+          save(); render(); closeModal();
+          toast('✅ '+valid.length+' רשומות נוספו','#15803d');
+        });
+      };
+      wrap.appendChild(addBtn);
+    }
+  }
+
+  rebuild();
+  showModal(wrap, '➕ הוספת נתונים', 'ייבוא קובץ או הכנסה ידנית');
+}
+
+// ── Notes Modal ───────────────────────────────────────────────────────────
+function openNoteEdit(itemId, triggerBtn) {
+  // Inline popover for editing a row note
+  var existing = qs('#note-popover');
+  if (existing) { existing.parentNode.removeChild(existing); if(existing.dataset.item===itemId) return; }
+  var currentNote = (S.summaryNotes[itemId] && S.summaryNotes[itemId]['_']) || '';
+  var pop = el('div', {id:'note-popover', 'data-item':itemId,
+    style:'position:fixed;z-index:2000;background:#fff;border:1.5px solid #c0d8f8;border-radius:12px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.18);width:260px;direction:rtl'
+  });
+  // Position near button
+  var rect = triggerBtn.getBoundingClientRect();
+  var top = Math.min(rect.bottom + 6, window.innerHeight - 180);
+  var left = Math.max(rect.left - 220, 8);
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+  pop.appendChild(el('div',{style:'font-size:12px;font-weight:700;color:#1565c0;margin-bottom:8px'},'📝 הערה לשורה'));
+  var ta = el('textarea',{style:'width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:8px;font-size:13px;resize:none;height:80px;font-family:inherit;direction:rtl;line-height:1.6'},currentNote);
+  pop.appendChild(ta);
+  var btnRow = el('div',{style:'display:flex;gap:7px;margin-top:8px;justify-content:flex-end'});
+  var saveBtn = el('button',{class:'btn-primary',style:'padding:6px 14px;font-size:12px',onclick:function(){
+    if (!S.summaryNotes[itemId]) S.summaryNotes[itemId]={};
+    S.summaryNotes[itemId]['_'] = ta.value.trim();
+    save();
+    pop.parentNode.removeChild(pop);
+    render();
+  }},'שמור');
+  var cancelBtn = el('button',{class:'btn-secondary',style:'padding:6px 12px;font-size:12px',onclick:function(){
+    pop.parentNode.removeChild(pop);
+  }},'ביטול');
+  if (currentNote) {
+    var clearBtn = el('button',{style:'padding:6px 10px;font-size:12px;background:none;border:1px solid #fca5a5;color:#e53935;border-radius:7px',onclick:function(){
+      if (S.summaryNotes[itemId]) delete S.summaryNotes[itemId]['_'];
+      save(); pop.parentNode.removeChild(pop); render();
+    }},'מחק');
+    btnRow.appendChild(clearBtn);
+  }
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(saveBtn);
+  pop.appendChild(btnRow);
+  document.body.appendChild(pop);
+  ta.focus();
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener('click', function handler(e){
+      if(!pop.contains(e.target) && e.target!==triggerBtn){
+        if(pop.parentNode) pop.parentNode.removeChild(pop);
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 10);
+}
+
+function openNotes() {
+  var ta = el('textarea', {class:'notes-area', placeholder:'הערות כלליות...'}, S.notes||'');
+  var btn = el('button', {class:'btn-primary', style:'width:100%;padding:12px;font-size:14px;margin-top:12px'}, '💾 שמור הערות');
+  btn.onclick = function(){ S.notes=ta.value; save(); closeModal(); toast('✅ נשמר','#15803d'); };
+  var body = el('div',{});
+  body.appendChild(ta);
+  body.appendChild(btn);
+  showModal(body,'📝 הערות');
+}
+
+// ── Backup Modal ──────────────────────────────────────────────────────────
+function openBackup() {
+  var stat = el('div',{style:'display:none'});
+  function setStatus(ok,msg){
+    stat.style.display='block';
+    stat.className='status-msg '+(ok?'status-ok':'status-err');
+    stat.textContent=(ok?'✅ ':'⚠️ ')+msg;
+  }
+  var fi = el('input',{type:'file',accept:'.json',style:'display:none'});
+  fi.onchange = function(e){
+    var f=e.target.files[0]; if(!f) return;
+    f.text().then(function(text){
+      var d=JSON.parse(text);
+      if(!d.owners&&!d.holdings) throw new Error('קובץ לא תקין');
+      if(d.owners)      S.owners=d.owners;
+      if(d.holdings)    S.holdings=d.holdings;
+      if(d.summaryVals) S.summaryVals=d.summaryVals;
+      if(d.notes)       S.notes=d.notes;
+      save(); render(); setStatus(true,'נטען בהצלחה!');
+      setTimeout(closeModal,1100);
+    }).catch(function(e){ setStatus(false,'שגיאה: '+e.message); });
+  };
+  var body = el('div',{});
+  body.appendChild(stat);
+  var box1 = el('div',{class:'backup-box'});
+  box1.appendChild(el('h3',{},'📤 ייצוא גיבוי'));
+  box1.appendChild(el('p',{},'מוריד קובץ JSON עם כל הנתונים. שמור ב-Dropbox / Google Drive.'));
+  var expBtn = el('button',{class:'btn-primary',style:'width:100%;padding:12px;font-size:14px'}, '⬇️ הורד גיבוי ('+S.owners.length+' בעלים · '+S.holdings.length+' פוזיציות)');
+  expBtn.onclick = function(){
+    var data={owners:S.owners,holdings:S.holdings,summaryVals:S.summaryVals,notes:S.notes,_at:new Date().toISOString()};
+    var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='portfolio_'+new Date().toLocaleDateString('he-IL').replace(/\//g,'-')+'.json'; a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    setStatus(true,'קובץ הורד!');
+  };
+  box1.appendChild(expBtn);
+  var box2 = el('div',{class:'backup-box'});
+  box2.appendChild(el('h3',{},'📥 שחזור מגיבוי'));
+  box2.appendChild(el('p',{}, el('strong',{style:'color:#dc2626'},'שים לב: '), ' יחליף את כל הנתונים הנוכחיים.'));
+  var impBtn = el('button',{class:'btn-secondary',style:'width:100%;padding:12px;font-size:14px'}, '📂 בחר קובץ (.json)');
+  impBtn.onclick = function(){ fi.click(); };
+  box2.appendChild(impBtn);
+  box2.appendChild(fi);
+  body.appendChild(box1);
+  body.appendChild(box2);
+  body.appendChild(el('div',{class:'tip-box'},'💡 סנכרון: שמור ב-Dropbox ובכל מחשב טען את הגיבוי.'));
+  showModal(body,'💾 גיבוי ושחזור');
+}
+
+// ── PIN / Lock ────────────────────────────────────────────────────────────
+function makeDots(n, err) {
+  var box = el('div',{class:'pin-dots'});
+  for(var i=0;i<6;i++){
+    box.appendChild(el('div',{class:'pin-dot'+(i<n?' on':'')+(err?' err':'')}));
+  }
+  return box;
+}
+function makeNumpad(onKey, dark) {
+  var pad = el('div',{class:'numpad'});
+  ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(function(k){
+    if(!k){pad.appendChild(el('div',{}));return;}
+    var b=el('button',{class:'npbtn',style:dark?'':'background:#f5f7fa;color:#1a1a2e;border-color:#e0e0e0'},k);
+    b.onclick=function(){onKey(k);};
+    pad.appendChild(b);
+  });
+  return pad;
+}
+
+function showLock() {
+  var ls = qs('#lock');
+  ls.innerHTML='';
+  var digits=[], shaking=false;
+  var pin=getPin(), hint=getHint();
+
+  function draw(){
+    ls.innerHTML='';
+    ls.className='lock-screen';
+    var box=el('div',{class:'lock-box'});
+    box.appendChild(el('div',{style:'font-size:48px;margin-bottom:6px'},'🔐'));
+    box.appendChild(el('div',{style:'font-size:24px;font-weight:900;color:#fff'},'ניהול תיק'));
+    box.appendChild(el('div',{style:'font-size:12px;color:rgba(255,255,255,.4);margin:5px 0'},'קוד כניסה'));
+    var dotsWrap=el('div',{style:shaking?'animation:shake .32s ease':''});
+    dotsWrap.appendChild(makeDots(digits.length,shaking));
+    box.appendChild(dotsWrap);
+    if(shaking) box.appendChild(el('div',{style:'color:#f87171;font-size:12px;font-weight:700;margin-bottom:6px'},'קוד שגוי'));
+    box.appendChild(makeNumpad(function(k){
+      if(shaking) return;
+      if(k==='⌫'){digits=digits.slice(0,-1);draw();return;}
+      if(digits.length>=6) return;
+      digits.push(k); draw();
+      if(digits.length===6){
+        if(digits.join('')===pin){
+          ls.innerHTML=''; ls.className='';
+          qs('#app').style.display='block';
+        } else {
+          shaking=true; draw();
+          setTimeout(function(){digits=[];shaking=false;draw();},700);
+        }
+      }
+    },true));
+    if(hint){
+      var hintBtn=el('button',{style:'background:none;border:none;color:rgba(255,255,255,.3);font-size:11px;cursor:pointer;text-decoration:underline;margin-top:14px;font-family:inherit'},'שכחתי את הקוד');
+      var hintBox=el('div',{style:'display:none;margin-top:7px;background:rgba(255,255,255,.07);border-radius:9px;padding:9px;color:rgba(255,255,255,.75);font-size:12px'},
+        el('span',{style:'color:rgba(255,255,255,.4)'},'💡 רמז: '),
+        el('strong',{},hint)
+      );
+      hintBtn.onclick=function(){hintBox.style.display='block';hintBtn.style.display='none';};
+      box.appendChild(hintBtn);
+      box.appendChild(hintBox);
+    }
+    ls.appendChild(box);
+  }
+  draw();
+}
+
+function openPinSetup() {
+  var phase='first', firstPin='', digits=[], hint=getHint(), errMsg='';
+  var body=el('div',{style:'text-align:center'});
+
+  function draw(){
+    body.innerHTML='';
+    body.appendChild(el('div',{style:'font-size:32px;margin-bottom:5px'},phase==='first'?'🔑':'✅'));
+    body.appendChild(el('div',{style:'font-size:17px;font-weight:900;color:#0d1b2a;margin-bottom:4px'},
+      phase==='first'?'הגדר קוד 6 ספרות':'אשר את הקוד'));
+    body.appendChild(makeDots(digits.length,!!errMsg));
+    if(errMsg) body.appendChild(el('div',{style:'color:#dc2626;font-size:12px;font-weight:700;margin-bottom:5px'},errMsg));
+    body.appendChild(makeNumpad(function(k){
+      if(k==='⌫'){digits=digits.slice(0,-1);errMsg='';draw();return;}
+      if(digits.length>=6) return;
+      digits.push(k);errMsg='';draw();
+      if(digits.length===6){
+        var entered=digits.join('');
+        if(phase==='first'){
+          firstPin=entered;
+          setTimeout(function(){phase='confirm';digits=[];draw();},200);
+        } else {
+          if(entered===firstPin){
+            var ta=body.querySelector('.hint-inp');
+            savePin(firstPin, ta?ta.value:hint);
+            closeModal(); toast('✅ קוד נשמר','#15803d'); render();
+          } else {
+            errMsg='הקודים אינם תואמים';
+            firstPin='';phase='first';digits=[];
+            setTimeout(draw,0);
+          }
+        }
+      }
+    },false));
+    if(phase==='first'){
+      body.appendChild(el('div',{style:'margin-top:16px;text-align:right'},
+        el('label',{style:'font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px'},'💡 רמז (אופציונלי)'),
+        el('input',{class:'hint-inp cell-input',value:hint,placeholder:'למשל: שנת לידה',oninput:function(e){hint=e.target.value;}})
+      ));
+    }
+    if(getPin()){
+      body.appendChild(el('button',{style:'margin-top:10px;background:none;border:none;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit',onclick:function(){
+        if(confirm('למחוק קוד?')){localStorage.removeItem(LS_PIN);localStorage.removeItem(LS_HINT);closeModal();render();toast('🔓 קוד הוסר');}
+      }},'🗑 מחק קוד קיים'));
+    }
+  }
+  draw();
+  showModal(body, getPin()?'🔑 שנה קוד':'🔑 הגדר קוד');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    load();
+    render();
+    var app = qs('#app');
+    var pin = getPin();
+    if (pin) {
+      app.style.display='none';
+      showLock();
+    } else {
+      app.style.display='block';
+    }
+  } catch(e) {
+    var b = document.getElementById('err-banner');
+    if (b) { b.style.display='block'; b.textContent = 'ERROR: ' + e.message + '\n' + e.stack; }
+  }
+});
+
+window.addEventListener('error', function(e) {
+  var b = document.getElementById('err-banner');
+  if (b) { b.style.display='block'; b.textContent = 'JS ERROR: ' + e.message + ' (line ' + e.lineno + ')'; }
+});
+
+})(); // end IIFE
+</script>
+</body>
+</html>
