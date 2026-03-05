@@ -545,6 +545,12 @@ function ownerHoldings(ownerId) {
   return S.holdings.filter(function(h){ return h.ownerId===ownerId; });
 }
 function syncFromHoldings() {
+  // First clear all summaryVals for all owners (only tradable categories, not manual entries)
+  var autoCats = ['stocks','bonds','cash','etf','hishtalmut','pension_k','managers','re_il','re_world','crypto'];
+  autoCats.forEach(function(cat) {
+    S.summaryVals[cat] = {};
+  });
+  // Now re-calculate from holdings
   S.owners.forEach(function(o) {
     var hs = ownerHoldings(o.id);
     hs.forEach(function(h) {
@@ -565,7 +571,7 @@ function syncFromHoldings() {
   save();
 }
 
-// ── Render ────────────────────────────────────────────────────────────────
+
 function render() {
   var app = qs('#app');
   app.innerHTML = '';
@@ -801,6 +807,47 @@ function renderOwners() {
 }
 
 // ── Add Data Modal ────────────────────────────────────────────────────────
+function normalizeStr(s) {
+  return (s||'').toString().trim().toLowerCase().replace(/\s+/g,' ');
+}
+function upsertHoldings(newRows, ownerId, replaceAll) {
+  if (replaceAll) {
+    // Remove all existing holdings for this owner, then add fresh
+    S.holdings = S.holdings.filter(function(h){ return h.ownerId !== ownerId; });
+    newRows.forEach(function(r){ S.holdings.push(Object.assign({}, r, {ownerId:ownerId})); });
+    return {added: newRows.length, updated: 0, replaced: true};
+  }
+  var added = 0, updated = 0;
+  newRows.forEach(function(r) {
+    var sym  = normalizeStr(r.symbol);
+    var name = normalizeStr(r.name);
+    var existing = S.holdings.find(function(h) {
+      if (h.ownerId !== ownerId) return false;
+      var hSym  = normalizeStr(h.symbol);
+      var hName = normalizeStr(h.name);
+      // Match if symbol matches (and is meaningful), OR name matches
+      var symMatch  = sym && sym !== '—' && sym === hSym;
+      var nameMatch = name && name.length > 1 && name === hName;
+      return symMatch || nameMatch;
+    });
+    if (existing) {
+      existing.name      = r.name      || existing.name;
+      existing.qty       = r.qty       != null ? r.qty       : existing.qty;
+      existing.price     = r.price     != null ? r.price     : existing.price;
+      existing.valueOrig = r.valueOrig != null ? r.valueOrig : existing.valueOrig;
+      existing.value     = r.value     != null ? r.value     : existing.value;
+      existing.currency  = r.currency  || existing.currency;
+      existing.broker    = r.broker    || existing.broker;
+      existing.source    = r.source    || existing.source;
+      updated++;
+    } else {
+      S.holdings.push(Object.assign({}, r, {ownerId: ownerId}));
+      added++;
+    }
+  });
+  return {added: added, updated: updated};
+}
+
 function openAddData() {
   var activeTab = 'file';
   var preview   = null;
@@ -908,13 +955,40 @@ function openAddData() {
           var tot = preview.rows.reduce(function(s,r){return s+(r.value||0);},0);
           if (tot>0) wrap.appendChild(el('div',{style:'background:#f0fdf4;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:600;color:#15803d;text-align:right'}, 'סה"כ: '+fd(tot)+' · '+preview.rows.length+' רשומות'));
 
-          var importBtn = el('button', {class:'btn-primary', style:'width:100%;padding:12px;font-size:14px;font-weight:800'}, '✓ ייבא '+preview.rows.length+' רשומות');
-          importBtn.onclick = function() {
-            preview.rows.forEach(function(r){ r.ownerId=selOwner; S.holdings.push(r); });
-            save(); render(); closeModal();
-            toast('✅ '+preview.rows.length+' רשומות נוספו','#15803d');
+          var existCount = S.holdings.filter(function(h){return h.ownerId===selOwner;}).length;
+          var importLabel = existCount > 0
+            ? '🔄 Replace ' + existCount + ' existing holdings with ' + preview.rows.length + ' new ones'
+            : '✓ Import ' + preview.rows.length + ' holdings';
+          var replaceBtn = el('button', {class:'btn-primary', style:'width:100%;padding:13px;font-size:14px;font-weight:800'}, importLabel);
+          replaceBtn.onclick = function() {
+            var ownerName = (S.owners.find(function(o){return o.id===selOwner;})||{}).name||selOwner;
+            var beforeCount = S.holdings.length;
+            // Remove ALL holdings for this owner
+            S.holdings = S.holdings.filter(function(h){ return h.ownerId !== selOwner; });
+            var removedCount = beforeCount - S.holdings.length;
+            // Add new ones
+            preview.rows.forEach(function(r){
+              S.holdings.push(Object.assign({id:uid()}, r, {ownerId: selOwner}));
+            });
+            save();
+            render();
+            closeModal();
+            toast('✅ Removed ' + removedCount + ', added ' + preview.rows.length + ' for ' + ownerName, '#15803d');
           };
-          wrap.appendChild(importBtn);
+          wrap.appendChild(replaceBtn);
+          if (existCount > 0) {
+            var mergeBtn = el('button', {
+              style:'width:100%;padding:9px;font-size:12px;font-weight:600;margin-top:6px;background:#f8faff;color:#666;border:1px solid #ddd;border-radius:9px;'
+            }, '➕ Add on top of existing (merge brokers)');
+            mergeBtn.onclick = function() {
+              preview.rows.forEach(function(r){
+                S.holdings.push(Object.assign({}, r, {ownerId: selOwner}));
+              });
+              save(); render(); closeModal();
+              toast('✅ Added ' + preview.rows.length + ' holdings', '#15803d');
+            };
+            wrap.appendChild(mergeBtn);
+          }
         }
       }
 
@@ -1008,9 +1082,12 @@ function openAddData() {
               broker:r.broker||'ידני', source:'ידני', ownerId:selOwner
             };
           });
-          valid.forEach(function(v){S.holdings.push(v);});
+          var res = upsertHoldings(valid, selOwner);
           save(); render(); closeModal();
-          toast('✅ '+valid.length+' רשומות נוספו','#15803d');
+          var msg = res.updated > 0
+            ? '✅ עודכנו ' + res.updated + ' · נוספו ' + res.added
+            : '✅ ' + res.added + ' רשומות נוספו';
+          toast(msg, '#15803d');
         });
       };
       wrap.appendChild(addBtn);
