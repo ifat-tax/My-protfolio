@@ -46,6 +46,20 @@ button{cursor:pointer;font-family:inherit;}
 .sum-table td{padding:9px 10px;border-bottom:1px solid #f5f5f5;font-size:13px;}
 .sum-table .cat td{background:#f0f6ff;font-weight:800;color:#1565c0;}
 .sum-table .sub td:first-child{padding-right:26px;}
+.sum-table .sub.clickable{cursor:pointer;}
+.sum-table .sub.clickable:hover td{background:#f0f6ff;}
+.drill-icon{font-size:10px;color:#2979c8;margin-right:4px;opacity:0;transition:opacity .15s;}
+.sum-table .sub.clickable:hover .drill-icon{opacity:1;}
+.drill-modal-owner{margin-bottom:18px;}
+.drill-modal-owner-title{font-size:13px;font-weight:800;padding:7px 12px;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:7px;color:#fff;}
+.drill-broker-group{margin-bottom:10px;}
+.drill-broker-label{font-size:11px;font-weight:700;color:#888;padding:3px 8px 4px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;display:block;}
+.drill-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:#fafafa;margin-bottom:4px;gap:10px;}
+.drill-row:hover{background:#f0f6ff;}
+.drill-sym{font-weight:800;font-size:12px;color:#1565c0;min-width:55px;}
+.drill-name{font-size:12px;color:#444;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.drill-val{font-family:monospace;font-weight:700;font-size:13px;color:#15803d;white-space:nowrap;text-align:left;}
+.drill-empty{text-align:center;padding:20px;color:#aaa;font-size:13px;}
 .sum-table .tot td{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);color:#fff;font-weight:900;}
 .num{font-family:monospace;font-weight:700;color:#15803d;text-align:left;}
 .edit-input{border:1.5px solid #e0e0e0;border-radius:7px;padding:5px 7px;font-size:13px;font-family:monospace;width:115px;text-align:left;direction:ltr;background:#fafafa;}
@@ -280,6 +294,46 @@ function showModal(body, title, sub) {
   document.body.appendChild(overlay);
 }
 
+// ── Generic prompt/confirm replacements (prompt() blocked in iframes) ──────
+function modalPrompt(title, placeholder, defaultVal, onConfirm) {
+  var inp = el('input', {
+    class: 'cell-input',
+    type: 'text',
+    placeholder: placeholder||'',
+    style: 'width:100%;font-size:15px;padding:9px 11px;margin-bottom:14px;direction:rtl;'
+  });
+  inp.value = defaultVal || '';
+  var errDiv = el('div', {style:'color:#dc2626;font-size:12px;margin-bottom:8px;display:none'}, 'נא להזין שם');
+  var btn = el('button', {class:'btn-primary', style:'width:100%;padding:11px;font-size:14px;font-weight:800'}, 'אישור');
+  btn.onclick = function() {
+    var val = inp.value.trim();
+    if (!val) { errDiv.style.display='block'; inp.focus(); return; }
+    closeModal();
+    onConfirm(val);
+  };
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') btn.click(); });
+  var body = el('div', {});
+  body.appendChild(errDiv);
+  body.appendChild(inp);
+  body.appendChild(btn);
+  showModal(body, title);
+  setTimeout(function(){ inp.focus(); inp.select(); }, 80);
+}
+
+function modalConfirm(message, onConfirm) {
+  var body = el('div', {style:'text-align:center'});
+  body.appendChild(el('div', {style:'font-size:32px;margin-bottom:10px'}, '⚠️'));
+  body.appendChild(el('div', {style:'font-size:14px;font-weight:700;margin-bottom:18px;line-height:1.6'}, message));
+  var row = el('div', {style:'display:flex;gap:9px'});
+  var cancelBtn = el('button', {class:'btn-secondary', style:'flex:1;padding:11px;font-size:14px', onclick:closeModal}, 'ביטול');
+  var confirmBtn = el('button', {style:'flex:1;padding:11px;font-size:14px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:9px;cursor:pointer'}, 'מחק');
+  confirmBtn.onclick = function(){ closeModal(); onConfirm(); };
+  row.appendChild(cancelBtn);
+  row.appendChild(confirmBtn);
+  body.appendChild(row);
+  showModal(body, 'אישור פעולה');
+}
+
 // ── Currency ──────────────────────────────────────────────────────────────
 var _rates = null;
 function getRates() {
@@ -460,12 +514,37 @@ function parseSpreadsheetML(xmlText, fileName, rates) {
   return results.slice(0, 2000);
 }
 
+// Read text file with smart encoding detection (UTF-8 / Windows-1255 for Hebrew CSVs)
+function readTextSmart(file) {
+  return new Promise(function(resolve, reject) {
+    // First try UTF-8
+    var r1 = new FileReader();
+    r1.onload = function(e) {
+      var text = e.target.result;
+      // Heuristic: if text contains replacement char (U+FFFD) or looks like garbled Hebrew
+      // (common pattern: lots of ×'xx sequences), try Windows-1255 instead
+      var hasReplacement = text.indexOf('\uFFFD') >= 0;
+      var garbledHebrew  = /[\xC3\xD7][\x80-\xBF]/.test(text) || (text.match(/×/g)||[]).length > 3;
+      if (hasReplacement || garbledHebrew) {
+        var r2 = new FileReader();
+        r2.onload = function(e2) { resolve(e2.target.result); };
+        r2.onerror = function() { resolve(text); }; // fallback to original
+        r2.readAsText(file, 'windows-1255');
+      } else {
+        resolve(text);
+      }
+    };
+    r1.onerror = reject;
+    r1.readAsText(file, 'UTF-8');
+  });
+}
+
 function parseFile(file) {
   var name = file.name.toLowerCase();
   if (file.size > 10*1024*1024) return Promise.reject(new Error('הקובץ גדול מדי (מעל 10MB)'));
   return getRates().then(function(rates) {
     if (name.endsWith('.csv')||name.endsWith('.tsv')||name.endsWith('.txt')) {
-      return file.text().then(function(text) {
+      return readTextSmart(file).then(function(text) {
         var lines = text.trim().split(/\r?\n/).filter(Boolean);
         var delim = lines[0].includes('\t') ? '\t' : ',';
         var rows = lines.map(function(l){
@@ -475,7 +554,7 @@ function parseFile(file) {
       });
     }
     if (name.endsWith('.xlsx')||name.endsWith('.xls')||name.endsWith('.xlsm')) {
-      return file.text().then(function(text) {
+      return readTextSmart(file).then(function(text) {
         // Check if it's SpreadsheetML (XML-based .xls exported by Israeli brokers)
         var stripped = text.trim();
         if (stripped.indexOf('<?xml') >= 0 && stripped.indexOf('Workbook') >= 0 && stripped.indexOf('spreadsheet') >= 0) {
@@ -545,25 +624,26 @@ function ownerHoldings(ownerId) {
   return S.holdings.filter(function(h){ return h.ownerId===ownerId; });
 }
 function syncFromHoldings() {
-  // First clear all summaryVals for all owners (only tradable categories, not manual entries)
-  var autoCats = ['stocks','bonds','cash','etf','hishtalmut','pension_k','managers','re_il','re_world','crypto'];
-  autoCats.forEach(function(cat) {
-    S.summaryVals[cat] = {};
+  // Reset synced categories first so repeated clicks don't accumulate
+  var syncedCats = ['stocks','bonds','cash','etf','hishtalmut','pension_k','managers','re_il','crypto'];
+  S.owners.forEach(function(o) {
+    syncedCats.forEach(function(cat) {
+      if (S.summaryVals[cat]) S.summaryVals[cat][o.id] = 0;
+    });
   });
-  // Now re-calculate from holdings
   S.owners.forEach(function(o) {
     var hs = ownerHoldings(o.id);
     hs.forEach(function(h) {
       var name = (h.name||'').toLowerCase();
       var cat = 'stocks';
-      if (name.includes('אגח')||name.includes('אג"ח')||name.includes('bond')) cat='bonds';
-      else if (name.includes('כספ')||name.includes('מזומן')||name.includes('cash')||name.includes('יתרה')) cat='cash';
-      else if (name.includes('etf')||name.includes('קרן סל')) cat='etf';
-      else if (name.includes('השתלמות')) cat='hishtalmut';
-      else if (name.includes('פנסי')) cat='pension_k';
-      else if (name.includes('מנהלים')) cat='managers';
-      else if (name.includes('נדל')) cat='re_il';
-      else if (name.includes('קריפטו')||name.includes('crypto')||name.includes('bitcoin')) cat='crypto';
+      if (name.includes('\u05d0\u05d2\u05d7')||name.includes('\u05d0\u05d2"\u05d7')||name.includes('bond')) cat='bonds';
+      else if (name.includes('\u05db\u05e1\u05e4')||name.includes('\u05de\u05d6\u05d5\u05de\u05df')||name.includes('cash')||name.includes('\u05d9\u05ea\u05e8\u05d4')) cat='cash';
+      else if (name.includes('etf')||name.includes('\u05e7\u05e8\u05df \u05e1\u05dc')) cat='etf';
+      else if (name.includes('\u05d4\u05e9\u05ea\u05dc\u05de\u05d5\u05ea')) cat='hishtalmut';
+      else if (name.includes('\u05e4\u05e0\u05e1\u05d9')) cat='pension_k';
+      else if (name.includes('\u05de\u05e0\u05d4\u05dc\u05d9\u05dd')) cat='managers';
+      else if (name.includes('\u05e0\u05d3\u05dc')) cat='re_il';
+      else if (name.includes('\u05e7\u05e8\u05d9\u05e4\u05d8\u05d5')||name.includes('crypto')||name.includes('bitcoin')) cat='crypto';
       if (!S.summaryVals[cat]) S.summaryVals[cat]={};
       S.summaryVals[cat][o.id] = (S.summaryVals[cat][o.id]||0) + (h.value||0);
     });
@@ -571,7 +651,7 @@ function syncFromHoldings() {
   save();
 }
 
-
+// ── Render ────────────────────────────────────────────────────────────────
 function render() {
   var app = qs('#app');
   app.innerHTML = '';
@@ -664,8 +744,22 @@ function renderSummary() {
     tbody.appendChild(ctr);
 
     cat.sub.forEach(function(item) {
-      var tr = el('tr', {class:'sub'});
-      tr.appendChild(el('td', {}, item.icon+' '+item.label));
+      // Check if this item has holdings to drill into
+      var hasDrill = holdingsForItem(item.id, null).length > 0;
+      var tr = el('tr', {class:'sub'+(hasDrill?' clickable':'')});
+      // First cell: label + optional drill indicator
+      var labelSpan = document.createTextNode(item.icon+' '+item.label);
+      var firstTd = el('td', {});
+      firstTd.appendChild(labelSpan);
+      if (hasDrill) {
+        var drillIcon = el('span', {class:'drill-icon'}, ' 🔍');
+        firstTd.appendChild(drillIcon);
+        (function(it){ tr.addEventListener('click', function(e){
+          if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON') return;
+          openDrillDown(it);
+        }); })(item);
+      }
+      tr.appendChild(firstTd);
       var isNeg = isNegItem(item.id);
       var rowTot = 0;
       S.owners.forEach(function(o) {
@@ -752,7 +846,7 @@ function renderHoldings() {
       if (cur!=='ILS'&&h.valueOrig) right.appendChild(el('div',{style:'font-size:10px;color:#aaa'}, h.valueOrig.toLocaleString()));
       var delBtn = el('button', {class:'del-btn'}, '✕ מחק');
       delBtn.onclick = (function(id){ return function(){
-        if(confirm('למחוק?')){ S.holdings=S.holdings.filter(function(x){return x.id!==id;}); save(); render(); }
+        modalConfirm('למחוק את האחזקה?', function(){ S.holdings=S.holdings.filter(function(x){return x.id!==id;}); save(); render(); });
       }; })(h.id);
       right.appendChild(delBtn);
       body.appendChild(el('div', {class:'hold-row', style:'border-right-color:'+col},
@@ -775,8 +869,9 @@ function renderOwners() {
   var sec = el('div', {class:'section'+(S.tab==='owners'?' active':'')});
   sec.appendChild(el('div', {class:'action-bar'},
     el('button', {class:'btn-primary', onclick:function(){
-      var name = prompt('שם הבעלים החדש:');
-      if (name&&name.trim()) { S.owners.push({id:uid(),name:name.trim()}); save(); render(); }
+      modalPrompt('הוסף בעלים', 'שם הבעלים', '', function(name){
+        S.owners.push({id:uid(),name:name}); save(); render();
+      });
     }}, '+ הוסף בעלים'),
     el('h2', {}, 'בעלים')
   ));
@@ -785,11 +880,11 @@ function renderOwners() {
     var col = COLORS[i%COLORS.length];
     var card = el('div', {class:'owner-card', style:'border-top:4px solid '+col});
     var acts = el('div', {style:'display:flex;gap:5px'});
-    acts.appendChild(el('button', {class:'icon-btn', onclick:function(){
-      var n=prompt('שם חדש:',o.name); if(n&&n.trim()){o.name=n.trim();save();render();}
-    }}, '✏️'));
+    acts.appendChild(el('button', {class:'icon-btn', onclick:(function(owner){return function(){
+      modalPrompt('שינוי שם', 'שם חדש', owner.name, function(n){ owner.name=n; save(); render(); });
+    };})(o)}, '✏️'));
     acts.appendChild(el('button', {class:'icon-btn del', onclick:function(){
-      if(confirm('למחוק '+o.name+'?')){ S.owners=S.owners.filter(function(x){return x.id!==o.id;}); S.holdings=S.holdings.filter(function(x){return x.ownerId!==o.id;}); save(); render(); }
+      modalConfirm('למחוק את ' + o.name + '?', function(){ S.owners=S.owners.filter(function(x){return x.id!==o.id;}); S.holdings=S.holdings.filter(function(x){return x.ownerId!==o.id;}); save(); render(); });
     }}, '🗑'));
     card.appendChild(el('div', {class:'owner-top'},
       el('div', {class:'owner-name', style:'color:'+col}, o.name),
@@ -806,48 +901,92 @@ function renderOwners() {
   return sec;
 }
 
-// ── Add Data Modal ────────────────────────────────────────────────────────
-function normalizeStr(s) {
-  return (s||'').toString().trim().toLowerCase().replace(/\s+/g,' ');
-}
-function upsertHoldings(newRows, ownerId, replaceAll) {
-  if (replaceAll) {
-    // Remove all existing holdings for this owner, then add fresh
-    S.holdings = S.holdings.filter(function(h){ return h.ownerId !== ownerId; });
-    newRows.forEach(function(r){ S.holdings.push(Object.assign({}, r, {ownerId:ownerId})); });
-    return {added: newRows.length, updated: 0, replaced: true};
-  }
-  var added = 0, updated = 0;
-  newRows.forEach(function(r) {
-    var sym  = normalizeStr(r.symbol);
-    var name = normalizeStr(r.name);
-    var existing = S.holdings.find(function(h) {
-      if (h.ownerId !== ownerId) return false;
-      var hSym  = normalizeStr(h.symbol);
-      var hName = normalizeStr(h.name);
-      // Match if symbol matches (and is meaningful), OR name matches
-      var symMatch  = sym && sym !== '—' && sym === hSym;
-      var nameMatch = name && name.length > 1 && name === hName;
-      return symMatch || nameMatch;
-    });
-    if (existing) {
-      existing.name      = r.name      || existing.name;
-      existing.qty       = r.qty       != null ? r.qty       : existing.qty;
-      existing.price     = r.price     != null ? r.price     : existing.price;
-      existing.valueOrig = r.valueOrig != null ? r.valueOrig : existing.valueOrig;
-      existing.value     = r.value     != null ? r.value     : existing.value;
-      existing.currency  = r.currency  || existing.currency;
-      existing.broker    = r.broker    || existing.broker;
-      existing.source    = r.source    || existing.source;
-      updated++;
-    } else {
-      S.holdings.push(Object.assign({}, r, {ownerId: ownerId}));
-      added++;
-    }
-  });
-  return {added: added, updated: updated};
+// ── Drill-down Modal ──────────────────────────────────────────────────────
+function getCatForItem(itemId) {
+  // Map item id -> which "sync" category it belongs to for holdings matching
+  var syncedCats = ['stocks','bonds','cash','etf','hishtalmut','pension_k','managers','re_il','crypto'];
+  if (syncedCats.indexOf(itemId) >= 0) return itemId;
+  return null;
 }
 
+function holdingsForItem(itemId, ownerId) {
+  // Returns holdings that were mapped to this category by syncFromHoldings logic
+  return S.holdings.filter(function(h) {
+    if (ownerId && h.ownerId !== ownerId) return false;
+    var name = (h.name||'').toLowerCase();
+    var cat = 'stocks';
+    if (name.includes('\u05d0\u05d2\u05d7')||name.includes('\u05d0\u05d2"\u05d7')||name.includes('bond')) cat='bonds';
+    else if (name.includes('\u05db\u05e1\u05e4')||name.includes('\u05de\u05d6\u05d5\u05de\u05df')||name.includes('cash')||name.includes('\u05d9\u05ea\u05e8\u05d4')) cat='cash';
+    else if (name.includes('etf')||name.includes('\u05e7\u05e8\u05df \u05e1\u05dc')) cat='etf';
+    else if (name.includes('\u05d4\u05e9\u05ea\u05dc\u05de\u05d5\u05ea')) cat='hishtalmut';
+    else if (name.includes('\u05e4\u05e0\u05e1\u05d9')) cat='pension_k';
+    else if (name.includes('\u05de\u05e0\u05d4\u05dc\u05d9\u05dd')) cat='managers';
+    else if (name.includes('\u05e0\u05d3\u05dc')) cat='re_il';
+    else if (name.includes('\u05e7\u05e8\u05d9\u05e4\u05d8\u05d5')||name.includes('crypto')||name.includes('bitcoin')) cat='crypto';
+    return cat === itemId;
+  });
+}
+
+function openDrillDown(item) {
+  var body = el('div', {});
+
+  // Check if there are any holdings for this item at all
+  var allHoldings = holdingsForItem(item.id, null);
+  if (!allHoldings.length) {
+    body.appendChild(el('div', {class:'drill-empty'},
+      el('div', {style:'font-size:32px;margin-bottom:8px'}, '📭'),
+      el('div', {style:'font-weight:700'}, 'אין אחזקות מיובאות לסעיף זה'),
+      el('div', {style:'font-size:11px;color:#bbb;margin-top:4px'}, 'ייבא נתונים ולחץ "עדכן מאחזקות"')
+    ));
+    showModal(body, item.icon + ' ' + item.label);
+    return;
+  }
+
+  S.owners.forEach(function(o, oi) {
+    var hs = holdingsForItem(item.id, o.id);
+    if (!hs.length) return;
+
+    var col = COLORS[oi % COLORS.length];
+    var ownerSection = el('div', {class:'drill-modal-owner'});
+
+    var titleBar = el('div', {class:'drill-modal-owner-title', style:'background:'+col});
+    titleBar.appendChild(document.createTextNode(o.name));
+    var ownerTotal = hs.reduce(function(s,h){return s+(h.value||0);},0);
+    titleBar.appendChild(el('span', {style:'margin-right:auto;font-size:12px;opacity:.85'}, fd(ownerTotal)));
+    ownerSection.appendChild(titleBar);
+
+    // Group by broker
+    var brokerMap = {};
+    hs.forEach(function(h) {
+      var b = (h.broker||'לא ידוע').trim() || 'לא ידוע';
+      if (!brokerMap[b]) brokerMap[b] = [];
+      brokerMap[b].push(h);
+    });
+
+    Object.keys(brokerMap).sort().forEach(function(broker) {
+      var group = brokerMap[broker];
+      var brokerDiv = el('div', {class:'drill-broker-group'});
+      var brokerTotal = group.reduce(function(s,h){return s+(h.value||0);},0);
+      brokerDiv.appendChild(el('span', {class:'drill-broker-label'},
+        '🏦 ' + broker + '  —  ' + fd(brokerTotal)
+      ));
+      group.forEach(function(h) {
+        brokerDiv.appendChild(el('div', {class:'drill-row'},
+          el('div', {class:'drill-sym'}, h.symbol||'—'),
+          el('div', {class:'drill-name'}, h.name||'—'),
+          el('div', {class:'drill-val'}, h.value ? fd(h.value) : '—')
+        ));
+      });
+      ownerSection.appendChild(brokerDiv);
+    });
+
+    body.appendChild(ownerSection);
+  });
+
+  showModal(body, item.icon + ' ' + item.label, 'אחזקות לפי ברוקר');
+}
+
+// ── Add Data Modal ────────────────────────────────────────────────────────
 function openAddData() {
   var activeTab = 'file';
   var preview   = null;
@@ -955,40 +1094,13 @@ function openAddData() {
           var tot = preview.rows.reduce(function(s,r){return s+(r.value||0);},0);
           if (tot>0) wrap.appendChild(el('div',{style:'background:#f0fdf4;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:600;color:#15803d;text-align:right'}, 'סה"כ: '+fd(tot)+' · '+preview.rows.length+' רשומות'));
 
-          var existCount = S.holdings.filter(function(h){return h.ownerId===selOwner;}).length;
-          var importLabel = existCount > 0
-            ? '🔄 Replace ' + existCount + ' existing holdings with ' + preview.rows.length + ' new ones'
-            : '✓ Import ' + preview.rows.length + ' holdings';
-          var replaceBtn = el('button', {class:'btn-primary', style:'width:100%;padding:13px;font-size:14px;font-weight:800'}, importLabel);
-          replaceBtn.onclick = function() {
-            var ownerName = (S.owners.find(function(o){return o.id===selOwner;})||{}).name||selOwner;
-            var beforeCount = S.holdings.length;
-            // Remove ALL holdings for this owner
-            S.holdings = S.holdings.filter(function(h){ return h.ownerId !== selOwner; });
-            var removedCount = beforeCount - S.holdings.length;
-            // Add new ones
-            preview.rows.forEach(function(r){
-              S.holdings.push(Object.assign({id:uid()}, r, {ownerId: selOwner}));
-            });
-            save();
-            render();
-            closeModal();
-            toast('✅ Removed ' + removedCount + ', added ' + preview.rows.length + ' for ' + ownerName, '#15803d');
+          var importBtn = el('button', {class:'btn-primary', style:'width:100%;padding:12px;font-size:14px;font-weight:800'}, '✓ ייבא '+preview.rows.length+' רשומות');
+          importBtn.onclick = function() {
+            preview.rows.forEach(function(r){ r.ownerId=selOwner; S.holdings.push(r); });
+            save(); render(); closeModal();
+            toast('✅ '+preview.rows.length+' רשומות נוספו','#15803d');
           };
-          wrap.appendChild(replaceBtn);
-          if (existCount > 0) {
-            var mergeBtn = el('button', {
-              style:'width:100%;padding:9px;font-size:12px;font-weight:600;margin-top:6px;background:#f8faff;color:#666;border:1px solid #ddd;border-radius:9px;'
-            }, '➕ Add on top of existing (merge brokers)');
-            mergeBtn.onclick = function() {
-              preview.rows.forEach(function(r){
-                S.holdings.push(Object.assign({}, r, {ownerId: selOwner}));
-              });
-              save(); render(); closeModal();
-              toast('✅ Added ' + preview.rows.length + ' holdings', '#15803d');
-            };
-            wrap.appendChild(mergeBtn);
-          }
+          wrap.appendChild(importBtn);
         }
       }
 
@@ -1082,12 +1194,9 @@ function openAddData() {
               broker:r.broker||'ידני', source:'ידני', ownerId:selOwner
             };
           });
-          var res = upsertHoldings(valid, selOwner);
+          valid.forEach(function(v){S.holdings.push(v);});
           save(); render(); closeModal();
-          var msg = res.updated > 0
-            ? '✅ עודכנו ' + res.updated + ' · נוספו ' + res.added
-            : '✅ ' + res.added + ' רשומות נוספו';
-          toast(msg, '#15803d');
+          toast('✅ '+valid.length+' רשומות נוספו','#15803d');
         });
       };
       wrap.appendChild(addBtn);
@@ -1318,7 +1427,7 @@ function openPinSetup() {
     }
     if(getPin()){
       body.appendChild(el('button',{style:'margin-top:10px;background:none;border:none;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit',onclick:function(){
-        if(confirm('למחוק קוד?')){localStorage.removeItem(LS_PIN);localStorage.removeItem(LS_HINT);closeModal();render();toast('🔓 קוד הוסר');}
+        modalConfirm('למחוק קוד?', function(){localStorage.removeItem(LS_PIN);localStorage.removeItem(LS_HINT);closeModal();render();toast('🔓 קוד הוסר');});
       }},'🗑 מחק קוד קיים'));
     }
   }
